@@ -54,6 +54,7 @@ impl rustc_driver::Callbacks for MinippyCallBacks {
             // lintを登録する
             lint_store.register_late_pass(|| Box::new(AddZero));
             lint_store.register_late_pass(|| Box::new(SubZero));
+            lint_store.register_late_pass(|| Box::new(MulOne));
         }));
     }
 
@@ -138,6 +139,51 @@ impl<'tcx> LateLintPass<'tcx> for SubZero {
         {
             // 警告を表示する
             cx.struct_span_lint(SUB_ZERO, expr.span, |diag| {
+                let mut diag = diag.build("Ineffective operation");
+                diag.emit();
+            });
+        }
+    }
+}
+
+// ここからmul one lintの定義
+
+// おまじない
+declare_tool_lint! {
+    pub crate::MUL_ONE,
+    Warn, // lintのレベル
+    "", // lintの説明(今回は省略)
+    report_in_external_macro: true
+}
+
+struct MulOne;
+// おまじない
+impl_lint_pass!(MulOne => [MUL_ONE]);
+
+// 式がリテラルの1かチェックする
+fn is_lit_one(expr: &Expr) -> bool {
+    if let ExprKind::Lit(lit) = &expr.kind
+        && let LitKind::Int(1, ..) = lit.node
+    {
+        true
+    } else {
+        false
+    }
+}
+
+impl<'tcx> LateLintPass<'tcx> for MulOne {
+    fn check_expr(&mut self, cx: &LateContext<'tcx>, expr: &'tcx Expr<'tcx>) {
+        // マクロ展開されたコードはリントしない
+        if expr.span.from_expansion() {
+            return;
+        }
+        // 二項演算かつ、左辺もしくは右辺がリテラルの1であるならば、
+        if let ExprKind::Binary(binop, lhs, rhs) = expr.kind
+            && BinOpKind::Mul == binop.node
+            && (is_lit_one(lhs) || is_lit_one(rhs))
+        {
+            // 警告を表示する
+            cx.struct_span_lint(MUL_ONE, expr.span, |diag| {
                 let mut diag = diag.build("Ineffective operation");
                 diag.emit();
             });
