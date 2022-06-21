@@ -10,7 +10,7 @@ A tiny toy linter influenced by Clippy
 $ cargo run tests/add_zero.rs
 ```
 
-## setup
+## Setup
 ```
 $ rustup override set nightly
 $ rustup component add rust-src rustc-dev llvm-tools-preview
